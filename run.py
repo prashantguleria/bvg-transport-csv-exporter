@@ -10,7 +10,7 @@ import csv
 import configparser
 from datetime import datetime, timedelta
 import sys
-
+import threading
 url = "https://v5.bvg.transport.rest/radar?north=52.6&west=13.2&south=52.21942&east=13.6"
 outputDirectory = "F:\\UpWork\\CSV_FILES\\"
 timeIntervalInSeconds = 5
@@ -18,6 +18,11 @@ maxInstances = 10
 time_till__to_keep_running_in_minutes = 30
 now = datetime.now()
 timeWhenToStop = now + timedelta(minutes = 30)
+timestamp = str(time.time())
+filePath = outputDirectory +  '/' + timestamp + '.csv'
+firstRun = True
+# create the lock
+csv_writer_lock = threading.Lock()
 requiredCols = [
     'tripId',
     'productName',
@@ -72,21 +77,24 @@ def stopJob():
     ##sys.exit()
 
 #This method created the CSV
-def createCSV(json_response):
+def createCSV(json_response,):
+    global firstRun
+    current_timestamp = str(time.time())
     record_dict = json.loads(json_response)
     allRecords = []
-    timestamp = str(time.time())
-    filePath = outputDirectory +  '/' + timestamp + '.csv'
     for record in record_dict:
         csvRecord  = {
-            'tripId' : record['tripId'], 'productName': record['line']['productName'], 'latitude' : record['location']['latitude'], 'longitude' : record['location']['latitude'],'timestamp' : timestamp 
+            'tripId' : record['tripId'], 'productName': record['line']['productName'], 'latitude' : record['location']['latitude'], 'longitude' : record['location']['latitude'],'timestamp' : current_timestamp 
             }
         allRecords.append(csvRecord)
-    with open(filePath, 'w', newline='') as output_file:
-        dict_writer = csv.DictWriter(output_file, requiredCols)
-        dict_writer.writeheader()
-        dict_writer.writerows(allRecords)
-        output_file.close()        
+    with csv_writer_lock:    
+        with open(filePath, 'a', newline='') as output_file:
+            dict_writer = csv.DictWriter(output_file, requiredCols)
+            if(firstRun):
+                dict_writer.writeheader()
+            firstRun = False
+            dict_writer.writerows(allRecords)
+            output_file.close()        
                 
 
 
